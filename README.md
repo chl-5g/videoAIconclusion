@@ -49,20 +49,28 @@ cp env.example .env
 在项目根目录执行（保证当前工作目录包含 `video_pipeline` 包）：
 
 ```bash
-python -m video_pipeline /path/to/video.mp4 -o output
+# 不写 -o 时：工作目录为 ./video/<视频名>/（链接用页面标题生成「视频名」，本地文件用文件名无后缀）
+python -m video_pipeline /path/to/demo.mp4 --skip-summary
 ```
 
-使用哔哩哔哩等页面链接时，会先调用项目内 `video_pipeline/download.py`（yt-dlp）将视频保存到输出目录，再走后续步骤：
+使用哔哩哔哩等页面链接时，会先调用 `video_pipeline/download.py`（`extract_video_info` 命名 + `download_video_url` 下载），再走转写与总结：
 
 ```bash
-python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/" -o output --skip-summary
+python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/" --skip-summary
+```
+
+若希望目录名固定为 `aaa`（与视频文件、结论前缀一致），可显式指定工作目录（取**最后一级目录名**作为「视频名」）：
+
+```bash
+python -m video_pipeline "https://..." -o ./video/aaa
+# 产物示例：./video/aaa/aaa.mp4、./video/aaa/aaa_conclusion.md
 ```
 
 常用参数：
 
 | 参数 | 含义 |
 |------|------|
-| `-o`, `--out` | 输出目录，默认 `output`。 |
+| `-o`, `--out` | 工作目录；**省略**时为 `./video/<视频名>/`。传入 `./video/aaa` 时，视频名为 `aaa`。 |
 | `--whisper-model` | `tiny` / `base` / `small` / `medium` / `large-v3` 等；机器较慢时优先减小模型。 |
 | `--device` | `cpu`（默认）或 `cuda`。 |
 | `--compute-type` | CPU 上常用 `int8`；CUDA 可试 `float16`。 |
@@ -73,8 +81,8 @@ python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/" -o outpu
 示例：
 
 ```bash
-# 仅转写，适合离线或不想配 API
-python -m video_pipeline ./demo.mp4 -o ./output --skip-summary
+# 仅转写，默认写入 ./video/demo/（demo 为文件名无后缀）
+python -m video_pipeline ./demo.mp4 --skip-summary
 
 # 弱 CPU：更小模型
 python -m video_pipeline ./demo.mp4 --whisper-model base
@@ -85,16 +93,18 @@ python -m video_pipeline ./talk.mp4 --language en
 
 ## 输出文件
 
-假定视频文件名为 `demo.mp4`（从链接下载时多为 `BVxxxxxxxx.mp4`），输出目录为 `output/`：
+设「视频名」为 `aaa`（即工作目录 `./video/aaa/` 的最后一级目录名），则同目录下约定如下（均为 UTF-8）：
 
 | 文件 | 说明 |
 |------|------|
-| `BVxxxxxxxx.mp4`（示例） | 从链接下载时的原始视频，与转写结果同目录。 |
-| `demo_16k.wav` | 中间音频，可删可留。 |
-| `demo_transcript.json` | 片段列表：`start` / `end` / `text`，顶层含检测语言字段；UTF-8，`ensure_ascii=False`。 |
-| `demo_transcript.txt` | 纯文本逐字稿，UTF-8。 |
-| `demo_transcript_timestamped.txt` | 带 `[起始s - 结束s]` 前缀的逐行文本，UTF-8。 |
-| `demo_summary.md` | 在已设置 `OPENAI_API_KEY` 且未 `--skip-summary` 时生成，中文要点式总结。 |
+| `aaa.mp4` | 从链接下载时的视频文件（扩展名以 yt-dlp 合并结果为准，多为 mp4）。 |
+| `aaa_16k.wav` | 中间音频。 |
+| `aaa_transcript.json` | 带时间戳的片段 JSON。 |
+| `aaa_transcript.txt` | 纯文本逐字稿。 |
+| `aaa_transcript_timestamped.txt` | 带 `[起始s - 结束s]` 的逐行文本。 |
+| `aaa_conclusion.md` | 已设置 `OPENAI_API_KEY` 且未 `--skip-summary` 时生成的 Markdown 总结。 |
+
+**本地视频**未使用 `-o` 时：不会复制原文件，仍从原路径读视频；转写与结论写入 `./video/<文件名无后缀>/`。若原文件名含路径非法字符，会经 `sanitize_job_name` 处理后再作为目录名。
 
 ## 项目结构
 
@@ -110,8 +120,10 @@ videoAIconclusion/
 │   ├── extract.py              # FFmpeg 抽 WAV
 │   ├── transcribe.py           # faster-whisper + 简体规范化
 │   └── summarize.py            # OpenAI 兼容 Chat Completions
-└── output/                     # 默认输出目录（运行后生成，已 .gitignore）
+└── video/                      # 默认工作区根（运行后生成，已 .gitignore）
 ```
+
+默认工作目录为项目下的 `video/<视频名>/`，体积较大，已加入 `.gitignore`；如需纳入版本库可自行调整。
 
 也可在自有脚本中 `import video_pipeline.extract` / `transcribe` / `summarize` 按需组合。
 

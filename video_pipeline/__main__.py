@@ -1,4 +1,4 @@
-"""CLI：视频 → WAV → 转写 →（可选）LLM 总结。"""
+"""CLI：视频 → WAV → 转写 →（可选）大模型总结。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,12 @@ try:
 except ImportError:
     pass
 
-from video_pipeline.download import download_video_url, is_http_url
+from video_pipeline.download import (
+    download_video_url,
+    extract_video_info,
+    is_http_url,
+    sanitize_job_name,
+)
 from video_pipeline.extract import extract_wav_16k_mono
 from video_pipeline.summarize import summarize_transcript
 from video_pipeline.transcribe import (
@@ -34,7 +39,13 @@ def main() -> int:
         metavar="PATH_OR_URL",
         help="本地视频路径，或 https:// 开头的页面链接（如哔哩哔哩）",
     )
-    p.add_argument("-o", "--out", type=Path, default=Path("output"), help="输出目录")
+    p.add_argument(
+        "-o",
+        "--out",
+        type=Path,
+        default=None,
+        help="工作目录；省略时自动为 ./video/<视频名>/（链接用页面标题生成视频名）",
+    )
     p.add_argument("--whisper-model", default="small", help="Whisper 模型：tiny/base/small/medium/large-v3 等")
     p.add_argument("--device", default="cpu", help="推理设备：cpu 或 cuda")
     p.add_argument(
@@ -48,25 +59,40 @@ def main() -> int:
         help="转写语言：默认 zh（中文）；填 auto 为自动检测；可填 en 等",
     )
     p.add_argument("--skip-summary", action="store_true", help="只做转写，不调用 LLM")
-    p.add_argument("--max-chars", type=int, default=120_000, help="送入 LLM 的转写最大字符数（防止超长）")
+    p.add_argument("--max-chars", type=int, default=120_000, help="送入 LLM 的逐字稿最大字符数（防止超长）")
     args = p.parse_args()
 
-    out_dir = args.out.expanduser().resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     raw_input = (args.video or "").strip()
+    cwd = Path.cwd()
+
     if is_http_url(raw_input):
+        meta = extract_video_info(raw_input)
+        default_name = sanitize_job_name(meta["title"], meta["id"])
+        if args.out is not None:
+            out_dir = args.out.expanduser().resolve()
+            job_name = out_dir.name
+        else:
+            job_name = default_name
+            out_dir = (cwd / "video" / job_name).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
         print("[0] 从链接下载视频（yt-dlp）…")
-        video = download_video_url(raw_input, out_dir)
+        video = download_video_url(raw_input, out_dir, job_name)
         print(f"      已保存：{video}")
     else:
         video = Path(raw_input).expanduser().resolve()
         if not video.is_file():
             print(f"文件不存在：{video}", file=sys.stderr)
             return 1
+        default_name = sanitize_job_name(video.stem, video.stem)
+        if args.out is not None:
+            out_dir = args.out.expanduser().resolve()
+            job_name = out_dir.name
+        else:
+            job_name = default_name
+            out_dir = (cwd / "video" / job_name).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
 
-    stem = video.stem
-    wav_path = out_dir / f"{stem}_16k.wav"
+    wav_path = out_dir / f"{job_name}_16k.wav"
 
     print("[1/3] 提取音频（FFmpeg）…")
     extract_wav_16k_mono(video, wav_path)
@@ -95,13 +121,13 @@ def main() -> int:
         {"start": s.start, "end": s.end, "text": s.text}
         for s in segments
     ]
-    (out_dir / f"{stem}_transcript.json").write_text(
+    (out_dir / f"{job_name}_transcript.json").write_text(
         json.dumps({"language": detected, "segments": seg_json}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    (out_dir / f"{stem}_transcript.txt").write_text(plain, encoding="utf-8")
-    (out_dir / f"{stem}_transcript_timestamped.txt").write_text(stamped, encoding="utf-8")
-    print(f"      已写入：{stem}_transcript.json / .txt / _timestamped.txt")
+    (out_dir / f"{job_name}_transcript.txt").write_text(plain, encoding="utf-8")
+    (out_dir / f"{job_name}_transcript_timestamped.txt").write_text(stamped, encoding="utf-8")
+    print(f"      已写入：{job_name}_transcript.json / .txt / _timestamped.txt")
 
     if args.skip_summary or not os.environ.get("OPENAI_API_KEY"):
         if not args.skip_summary and not os.environ.get("OPENAI_API_KEY"):
@@ -113,8 +139,9 @@ def main() -> int:
     print("[3/3] 生成总结（OpenAI 兼容 API）…")
     body = plain if len(plain) <= args.max_chars else plain[: args.max_chars] + "\n\n…（已截断，可调 --max-chars）"
     summary = summarize_transcript(body)
-    (out_dir / f"{stem}_summary.md").write_text(summary, encoding="utf-8")
-    print(f"      已写入：{out_dir / (stem + '_summary.md')}")
+    conclusion_path = out_dir / f"{job_name}_conclusion.md"
+    conclusion_path.write_text(summary, encoding="utf-8")
+    print(f"      已写入：{conclusion_path}")
     return 0
 
 
