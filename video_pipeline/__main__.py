@@ -15,6 +15,7 @@ try:
 except ImportError:
     pass
 
+from video_pipeline.download import download_video_url, is_http_url
 from video_pipeline.extract import extract_wav_16k_mono
 from video_pipeline.summarize import summarize_transcript
 from video_pipeline.transcribe import (
@@ -27,7 +28,12 @@ from video_pipeline.transcribe import (
 
 def main() -> int:
     p = argparse.ArgumentParser(description="视频流水线：FFmpeg 抽音频 → Faster-Whisper → LLM 总结")
-    p.add_argument("video", type=Path, help="输入视频路径")
+    p.add_argument(
+        "video",
+        type=str,
+        metavar="PATH_OR_URL",
+        help="本地视频路径，或 https:// 开头的页面链接（如哔哩哔哩）",
+    )
     p.add_argument("-o", "--out", type=Path, default=Path("output"), help="输出目录")
     p.add_argument("--whisper-model", default="small", help="Whisper 模型：tiny/base/small/medium/large-v3 等")
     p.add_argument("--device", default="cpu", help="推理设备：cpu 或 cuda")
@@ -45,13 +51,20 @@ def main() -> int:
     p.add_argument("--max-chars", type=int, default=120_000, help="送入 LLM 的转写最大字符数（防止超长）")
     args = p.parse_args()
 
-    video = args.video.expanduser().resolve()
-    if not video.is_file():
-        print(f"文件不存在：{video}", file=sys.stderr)
-        return 1
-
     out_dir = args.out.expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    raw_input = (args.video or "").strip()
+    if is_http_url(raw_input):
+        print("[0] 从链接下载视频（yt-dlp）…")
+        video = download_video_url(raw_input, out_dir)
+        print(f"      已保存：{video}")
+    else:
+        video = Path(raw_input).expanduser().resolve()
+        if not video.is_file():
+            print(f"文件不存在：{video}", file=sys.stderr)
+            return 1
+
     stem = video.stem
     wav_path = out_dir / f"{stem}_16k.wav"
 

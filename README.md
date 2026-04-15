@@ -1,12 +1,15 @@
 # videoAIconclusion
 
-本地视频（或已有文件）的「抽音频 → 语音转写 →（可选）大模型总结」流水线，组件可拆开替换：FFmpeg、faster-whisper、任意 **OpenAI 兼容** Chat Completions 接口。
+本地视频或 **网页链接**（如哔哩哔哩）的「可选下载 → 抽音频 → 语音转写 →（可选）大模型总结」流水线，组件可拆开替换：**yt-dlp**、FFmpeg、faster-whisper、任意 **OpenAI 兼容** Chat Completions 接口。
 
 ## 流程概览
 
+0. **yt-dlp**（可选）：当第一个参数为 `http(s)://` 链接时，先把视频下载到 `-o` 指定目录（合并为 mp4 需本机 **ffmpeg**）。  
 1. **FFmpeg**：从视频导出 16 kHz 单声道 PCM WAV，供 Whisper 使用。  
 2. **Faster-Whisper**：转写为带时间戳的片段；默认按中文解码，并对中文结果做 **简体字形** 规范化（`zhconv`）。  
 3. **HTTP API 总结**：将全文逐字稿 POST 到 `/v1/chat/completions`；未配置 API 密钥时只输出转写。
+
+使用在线链接时，请自行遵守平台服务条款与版权法，仅处理你有权下载与转写的视频。
 
 所有文本产物均为 **UTF-8** 编码写入磁盘。
 
@@ -39,6 +42,7 @@ cp env.example .env
 | `OPENAI_API_KEY` | 调用总结接口的密钥；仅转写时可不设。 |
 | `OPENAI_BASE_URL` | 可选，默认 `https://api.openai.com/v1`。DeepSeek、自建网关、Ollama（`http://127.0.0.1:11434/v1`）等填对应前缀。 |
 | `LLM_MODEL` | 可选，默认 `gpt-4o-mini`；例如 DeepSeek 可用 `deepseek-chat`。 |
+| `YTDLP_COOKIEFILE` | 可选，Netscape 格式 cookie 文件路径；部分 B 站高码率或校验场景可能需要（见 `env.example`）。 |
 
 ## 命令行用法
 
@@ -46,6 +50,12 @@ cp env.example .env
 
 ```bash
 python -m video_pipeline /path/to/video.mp4 -o output
+```
+
+使用哔哩哔哩等页面链接时，会先调用项目内 `video_pipeline/download.py`（yt-dlp）将视频保存到输出目录，再走后续步骤：
+
+```bash
+python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/" -o output --skip-summary
 ```
 
 常用参数：
@@ -75,10 +85,11 @@ python -m video_pipeline ./talk.mp4 --language en
 
 ## 输出文件
 
-假定视频文件名为 `demo.mp4`，输出目录为 `output/`：
+假定视频文件名为 `demo.mp4`（从链接下载时多为 `BVxxxxxxxx.mp4`），输出目录为 `output/`：
 
 | 文件 | 说明 |
 |------|------|
+| `BVxxxxxxxx.mp4`（示例） | 从链接下载时的原始视频，与转写结果同目录。 |
 | `demo_16k.wav` | 中间音频，可删可留。 |
 | `demo_transcript.json` | 片段列表：`start` / `end` / `text`，顶层含检测语言字段；UTF-8，`ensure_ascii=False`。 |
 | `demo_transcript.txt` | 纯文本逐字稿，UTF-8。 |
@@ -95,6 +106,7 @@ videoAIconclusion/
 ├── video_pipeline/
 │   ├── __init__.py
 │   ├── __main__.py             # CLI 入口
+│   ├── download.py             # yt-dlp 下载（B 站等）
 │   ├── extract.py              # FFmpeg 抽 WAV
 │   ├── transcribe.py           # faster-whisper + 简体规范化
 │   └── summarize.py            # OpenAI 兼容 Chat Completions
