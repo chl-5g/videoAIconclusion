@@ -44,7 +44,7 @@ def main() -> int:
         "--out",
         type=Path,
         default=None,
-        help="工作目录；省略时自动为 ./video/<视频名>/（链接用页面标题生成视频名）",
+        help="工作目录；省略时自动为 ./output/<视频名>/（链接用页面标题生成视频名）",
     )
     p.add_argument("--whisper-model", default="small", help="Whisper 模型：tiny/base/small/medium/large-v3 等")
     p.add_argument("--device", default="cpu", help="推理设备：cpu 或 cuda")
@@ -73,7 +73,7 @@ def main() -> int:
             job_name = out_dir.name
         else:
             job_name = default_name
-            out_dir = (cwd / "video" / job_name).resolve()
+            out_dir = (cwd / "output" / job_name).resolve()
         out_dir.mkdir(parents=True, exist_ok=True)
         print("[0] 从链接下载视频（yt-dlp）…")
         video = download_video_url(raw_input, out_dir, job_name)
@@ -89,7 +89,7 @@ def main() -> int:
             job_name = out_dir.name
         else:
             job_name = default_name
-            out_dir = (cwd / "video" / job_name).resolve()
+            out_dir = (cwd / "output" / job_name).resolve()
         out_dir.mkdir(parents=True, exist_ok=True)
 
     wav_path = out_dir / f"{job_name}_16k.wav"

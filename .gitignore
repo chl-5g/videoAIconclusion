@@ -4,7 +4,6 @@ __pycache__/
 *.pyc
 .env
 output/
-video/
 *.wav
 *.mp3
 *.part

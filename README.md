@@ -49,7 +49,7 @@ cp env.example .env
 在项目根目录执行（保证当前工作目录包含 `video_pipeline` 包）：
 
 ```bash
-# 不写 -o 时：工作目录为 ./video/<视频名>/（链接用页面标题生成「视频名」，本地文件用文件名无后缀）
+# 不写 -o 时：工作目录为 ./output/<视频名>/（链接用页面标题生成「视频名」，本地文件用文件名无后缀）
 python -m video_pipeline /path/to/demo.mp4 --skip-summary
 ```
 
@@ -62,15 +62,15 @@ python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/" --skip-s
 若希望目录名固定为 `aaa`（与视频文件、结论前缀一致），可显式指定工作目录（取**最后一级目录名**作为「视频名」）：
 
 ```bash
-python -m video_pipeline "https://..." -o ./video/aaa
-# 产物示例：./video/aaa/aaa.mp4、./video/aaa/aaa_conclusion.md
+python -m video_pipeline "https://..." -o ./output/aaa
+# 产物示例：./output/aaa/aaa.mp4、./output/aaa/aaa_conclusion.md
 ```
 
 常用参数：
 
 | 参数 | 含义 |
 |------|------|
-| `-o`, `--out` | 工作目录；**省略**时为 `./video/<视频名>/`。传入 `./video/aaa` 时，视频名为 `aaa`。 |
+| `-o`, `--out` | 工作目录；**省略**时为 `./output/<视频名>/`。传入 `./output/aaa` 时，视频名为 `aaa`。 |
 | `--whisper-model` | `tiny` / `base` / `small` / `medium` / `large-v3` 等；机器较慢时优先减小模型。 |
 | `--device` | `cpu`（默认）或 `cuda`。 |
 | `--compute-type` | CPU 上常用 `int8`；CUDA 可试 `float16`。 |
@@ -81,7 +81,7 @@ python -m video_pipeline "https://..." -o ./video/aaa
 示例：
 
 ```bash
-# 仅转写，默认写入 ./video/demo/（demo 为文件名无后缀）
+# 仅转写，默认写入 ./output/demo/（demo 为文件名无后缀）
 python -m video_pipeline ./demo.mp4 --skip-summary
 
 # 弱 CPU：更小模型
@@ -93,7 +93,7 @@ python -m video_pipeline ./talk.mp4 --language en
 
 ## 输出文件
 
-设「视频名」为 `aaa`（即工作目录 `./video/aaa/` 的最后一级目录名），则同目录下约定如下（均为 UTF-8）：
+设「视频名」为 `aaa`（即工作目录 `./output/aaa/` 的最后一级目录名），则同目录下约定如下（均为 UTF-8）：
 
 | 文件 | 说明 |
 |------|------|
@@ -104,7 +104,7 @@ python -m video_pipeline ./talk.mp4 --language en
 | `aaa_transcript_timestamped.txt` | 带 `[起始s - 结束s]` 的逐行文本。 |
 | `aaa_conclusion.md` | 已设置 `OPENAI_API_KEY` 且未 `--skip-summary` 时生成的 Markdown 总结。 |
 
-**本地视频**未使用 `-o` 时：不会复制原文件，仍从原路径读视频；转写与结论写入 `./video/<文件名无后缀>/`。若原文件名含路径非法字符，会经 `sanitize_job_name` 处理后再作为目录名。
+**本地视频**未使用 `-o` 时：不会复制原文件，仍从原路径读视频；转写与结论写入 `./output/<文件名无后缀>/`。若原文件名含路径非法字符，会经 `sanitize_job_name` 处理后再作为目录名。
 
 ## 项目结构
 
@@ -120,10 +120,10 @@ videoAIconclusion/
 │   ├── extract.py              # FFmpeg 抽 WAV
 │   ├── transcribe.py           # faster-whisper + 简体规范化
 │   └── summarize.py            # OpenAI 兼容 Chat Completions
-└── video/                      # 默认工作区根（运行后生成，已 .gitignore）
+└── output/                     # 默认工作区根（运行后生成，已 .gitignore）
 ```
 
-默认工作目录为项目下的 `video/<视频名>/`，体积较大，已加入 `.gitignore`；如需纳入版本库可自行调整。
+默认工作目录为项目下的 `output/<视频名>/`，体积较大，已加入 `.gitignore`；如需纳入版本库可自行调整。
 
 也可在自有脚本中 `import video_pipeline.extract` / `transcribe` / `summarize` 按需组合。
 
