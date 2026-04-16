@@ -8,3 +8,4 @@ output/
 *.mp3
 *.part
 *.ytdl
+.DS_Store

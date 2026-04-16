@@ -26,7 +26,6 @@ from video_pipeline.summarize import summarize_transcript
 from video_pipeline.transcribe import (
     segments_simplified_chinese,
     segments_to_plain_text,
-    segments_to_timestamped_text,
     transcribe_audio,
 )
 
@@ -92,7 +91,7 @@ def main() -> int:
             out_dir = (cwd / "output" / job_name).resolve()
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    wav_path = out_dir / f"{job_name}_16k.wav"
+    wav_path = out_dir / f"{job_name}.wav"
 
     print("[1/3] 提取音频（FFmpeg）…")
     extract_wav_16k_mono(video, wav_path)
@@ -115,19 +114,17 @@ def main() -> int:
         print("      已转为简体中文（UTF-8 文本）。")
 
     plain = segments_to_plain_text(segments)
-    stamped = segments_to_timestamped_text(segments)
 
     seg_json = [
         {"start": s.start, "end": s.end, "text": s.text}
         for s in segments
     ]
-    (out_dir / f"{job_name}_transcript.json").write_text(
+    (out_dir / f"{job_name}.json").write_text(
         json.dumps({"language": detected, "segments": seg_json}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    (out_dir / f"{job_name}_transcript.txt").write_text(plain, encoding="utf-8")
-    (out_dir / f"{job_name}_transcript_timestamped.txt").write_text(stamped, encoding="utf-8")
-    print(f"      已写入：{job_name}_transcript.json / .txt / _timestamped.txt")
+    (out_dir / f"{job_name}.txt").write_text(plain, encoding="utf-8")
+    print(f"      已写入：{job_name}.json / {job_name}.txt")
 
     if args.skip_summary or not os.environ.get("OPENAI_API_KEY"):
         if not args.skip_summary and not os.environ.get("OPENAI_API_KEY"):
@@ -139,7 +136,7 @@ def main() -> int:
     print("[3/3] 生成总结（OpenAI 兼容 API）…")
     body = plain if len(plain) <= args.max_chars else plain[: args.max_chars] + "\n\n…（已截断，可调 --max-chars）"
     summary = summarize_transcript(body)
-    conclusion_path = out_dir / f"{job_name}_conclusion.md"
+    conclusion_path = out_dir / f"{job_name}.md"
     conclusion_path.write_text(summary, encoding="utf-8")
     print(f"      已写入：{conclusion_path}")
     return 0

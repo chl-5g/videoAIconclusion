@@ -42,6 +42,9 @@ def transcribe_audio(
         language=language,
         beam_size=5,
         vad_filter=True,
+        condition_on_previous_text=False,
+        no_speech_threshold=0.6,
+        hallucination_silence_threshold=2.0,
     )
     segments: list[Segment] = []
     for seg in segments_iter:
