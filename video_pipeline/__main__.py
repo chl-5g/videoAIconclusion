@@ -57,7 +57,7 @@ def main() -> int:
         default="zh",
         help="转写语言：默认 zh（中文）；填 auto 为自动检测；可填 en 等",
     )
-    p.add_argument("--skip-summary", action="store_true", help="只做转写，不调用 LLM")
+    p.add_argument("--summarize", action="store_true", help="调用 LLM 生成 _conclusion.md（默认关闭；保留本地 14b 等后端代码备用）")
     p.add_argument("--max-chars", type=int, default=120_000, help="送入 LLM 的逐字稿最大字符数（防止超长）")
     args = p.parse_args()
 
@@ -119,11 +119,11 @@ def main() -> int:
     (out_dir / f"{job_name}.txt").write_text(plain_no_ws, encoding="utf-8")
     print(f"      已写入：{job_name}.txt（已去除空白字符）")
 
-    if args.skip_summary or not os.environ.get("OPENAI_API_KEY"):
-        if not args.skip_summary and not os.environ.get("OPENAI_API_KEY"):
-            print("[3/3] 跳过总结：未设置环境变量 OPENAI_API_KEY。可加 --skip-summary 消除本提示。")
-        else:
-            print("[3/3] 已按参数跳过总结。")
+    if not args.summarize:
+        print("[3/3] 跳过总结（--summarize 未开启；默认只产出 mp4/wav/txt）。")
+        return 0
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("[3/3] 已启用 --summarize 但未设置 OPENAI_API_KEY，跳过。")
         return 0
 
     print("[3/3] 生成总结（OpenAI 兼容 API）…")

@@ -7,7 +7,7 @@
 0. **yt-dlp**（可选）：当第一个参数为 `http(s)://` 链接时，先把视频下载到 `-o` 指定目录（合并为 mp4 需本机 **ffmpeg**）。  
 1. **FFmpeg**：从视频导出 16 kHz 单声道 PCM WAV，供 Whisper 使用。  
 2. **Faster-Whisper**：转写为带时间戳的片段；默认按中文解码，并对中文结果做 **简体字形** 规范化（`zhconv`）。  
-3. **HTTP API 总结**：将全文逐字稿 POST 到 `/v1/chat/completions`；未配置 API 密钥时只输出转写。
+3. **HTTP API 总结（默认关闭）**：需加 `--summarize` 并配置 `OPENAI_API_KEY` 才会将全文逐字稿 POST 到 `/v1/chat/completions` 生成 `_conclusion.md`。默认只产出转写。
 
 使用在线链接时，请自行遵守平台服务条款与版权法，仅处理你有权下载与转写的视频。
 
@@ -30,7 +30,7 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-需要总结步骤时，复制环境变量模板并填写：
+如需启用大模型总结（`--summarize`），复制环境变量模板并填写；不需要总结时可跳过：
 
 ```bash
 cp env.example .env
@@ -49,21 +49,29 @@ cp env.example .env
 在项目根目录执行（保证当前工作目录包含 `video_pipeline` 包）：
 
 ```bash
+# 默认只做「下载 → 抽音频 → 转写」，不调用大模型总结
 # 不写 -o 时：工作目录为 ./output/<视频名>/（链接用页面标题生成「视频名」，本地文件用文件名无后缀）
-python -m video_pipeline /path/to/demo.mp4 --skip-summary
+python -m video_pipeline /path/to/demo.mp4
 ```
 
-使用哔哩哔哩等页面链接时，会先调用 `video_pipeline/download.py`（`extract_video_info` 命名 + `download_video_url` 下载），再走转写与总结：
+使用哔哩哔哩等页面链接时，会先调用 `video_pipeline/download.py`（`extract_video_info` 命名 + `download_video_url` 下载），再走转写：
 
 ```bash
-python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/" --skip-summary
+python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/"
 ```
 
-若希望目录名固定为 `aaa`（与视频文件、结论前缀一致），可显式指定工作目录（取**最后一级目录名**作为「视频名」）：
+若希望目录名固定为 `aaa`（与视频文件前缀一致），可显式指定工作目录（取**最后一级目录名**作为「视频名」）：
 
 ```bash
 python -m video_pipeline "https://..." -o ./output/aaa
-# 产物示例：./output/aaa/aaa.mp4、./output/aaa/aaa_conclusion.md
+# 产物示例：./output/aaa/aaa.mp4、./output/aaa/aaa.wav、./output/aaa/aaa.txt
+```
+
+如需顺带生成大模型总结：
+
+```bash
+python -m video_pipeline "https://..." --summarize
+# 额外产出：./output/<视频名>/<视频名>_conclusion.md
 ```
 
 常用参数：
@@ -75,36 +83,37 @@ python -m video_pipeline "https://..." -o ./output/aaa
 | `--device` | `cpu`（默认）或 `cuda`。 |
 | `--compute-type` | CPU 上常用 `int8`；CUDA 可试 `float16`。 |
 | `--language` | 默认 `zh`（中文转写）；`auto` 为自动检测语言；也可显式指定 `en` 等。 |
-| `--skip-summary` | 只跑转写，不请求大模型。 |
+| `--summarize` | **默认关闭**：加上才调用大模型生成 `_conclusion.md`；`summarize.py` 后端代码保留以便未来启用。 |
 | `--max-chars` | 送入模型的逐字稿最大字符数，默认 `120000`，超出会截断并标注。 |
 
 示例：
 
 ```bash
-# 仅转写，默认写入 ./output/demo/（demo 为文件名无后缀）
-python -m video_pipeline ./demo.mp4 --skip-summary
+# 默认行为：仅转写，写入 ./output/demo/（demo 为文件名无后缀）
+python -m video_pipeline ./demo.mp4
 
 # 弱 CPU：更小模型
 python -m video_pipeline ./demo.mp4 --whisper-model base
 
 # 英文视频
 python -m video_pipeline ./talk.mp4 --language en
+
+# 额外跑大模型总结
+python -m video_pipeline ./demo.mp4 --summarize
 ```
 
 ## 输出文件
 
 设「视频名」为 `aaa`（即工作目录 `./output/aaa/` 的最后一级目录名），则同目录下约定如下（均为 UTF-8）：
 
-| 文件 | 说明 |
-|------|------|
-| `aaa.mp4` | 从链接下载时的视频文件（扩展名以 yt-dlp 合并结果为准，多为 mp4）。 |
-| `aaa_16k.wav` | 中间音频。 |
-| `aaa_transcript.json` | 带时间戳的片段 JSON。 |
-| `aaa_transcript.txt` | 纯文本逐字稿。 |
-| `aaa_transcript_timestamped.txt` | 带 `[起始s - 结束s]` 的逐行文本。 |
-| `aaa_conclusion.md` | 已设置 `OPENAI_API_KEY` 且未 `--skip-summary` 时生成的 Markdown 总结。 |
+| 文件 | 说明 | 触发条件 |
+|------|------|------|
+| `aaa.mp4` | 从链接下载时的视频文件（扩展名以 yt-dlp 合并结果为准，多为 mp4）。 | 输入为 URL |
+| `aaa.wav` | 16 kHz 单声道音频（Whisper 输入）。 | 总是生成 |
+| `aaa.txt` | 纯文本逐字稿，**已压掉所有空白字符**（空格/换行/制表）。 | 总是生成 |
+| `aaa_conclusion.md` | 大模型 Markdown 总结。 | `--summarize` + `OPENAI_API_KEY` |
 
-**本地视频**未使用 `-o` 时：不会复制原文件，仍从原路径读视频；转写与结论写入 `./output/<文件名无后缀>/`。若原文件名含路径非法字符，会经 `sanitize_job_name` 处理后再作为目录名。
+**本地视频**未使用 `-o` 时：不会复制原文件，仍从原路径读视频；转写输出写入 `./output/<文件名无后缀>/`。若原文件名含路径非法字符，会经 `sanitize_job_name` 处理后再作为目录名。
 
 ## 项目结构
 
