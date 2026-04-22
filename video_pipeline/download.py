@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
 
 import yt_dlp
+
+logger = logging.getLogger(__name__)
 
 
 def is_http_url(s: str) -> bool:
@@ -38,10 +41,12 @@ def sanitize_job_name(raw: str, fallback: str) -> str:
 
 def extract_video_info(url: str) -> dict[str, str]:
     """不下载，仅解析页面，得到 id、title 等用于命名。"""
+    logger.info("解析视频信息：%s", url.strip())
     opts: dict = {"quiet": True, "no_warnings": True, "skip_download": True}
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url.strip(), download=False)
     if not info:
+        logger.warning("未获取到视频信息，使用默认命名。")
         return {"id": "video", "title": "video"}
     if "entries" in info and info["entries"]:
         first = info["entries"][0] or {}
@@ -60,6 +65,8 @@ def download_video_url(url: str, out_dir: Path, job_name: str) -> Path:
     """
     out_dir = out_dir.expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("开始下载视频：%s", url.strip())
+    logger.info("下载输出目录：%s", out_dir)
     last_file: list[str | None] = [None]
 
     def hook(d: dict) -> None:
@@ -82,11 +89,13 @@ def download_video_url(url: str, out_dir: Path, job_name: str) -> Path:
     if last_file[0]:
         p = Path(last_file[0])
         if p.is_file():
+            logger.info("下载完成：%s", p)
             return p
 
     for ext in ("mp4", "mkv", "webm", "flv"):
         p = out_dir / f"{job_name}.{ext}"
         if p.is_file():
+            logger.info("下载完成（后备命名匹配）：%s", p)
             return p
 
     bvid = _guess_bvid(url)
@@ -94,6 +103,8 @@ def download_video_url(url: str, out_dir: Path, job_name: str) -> Path:
         for ext in ("mp4", "mkv", "webm", "flv"):
             p = out_dir / f"{bvid}.{ext}"
             if p.is_file():
+                logger.info("下载完成（BV 号匹配）：%s", p)
                 return p
 
+    logger.error("下载结束但未找到输出文件：%s", out_dir)
     raise RuntimeError("下载结束但未找到输出文件，请检查 yt-dlp 日志与输出目录权限。")

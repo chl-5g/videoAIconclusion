@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 
 import zhconv
 from faster_whisper import WhisperModel
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -36,7 +39,15 @@ def transcribe_audio(
     language: None 表示自动检测；传 'zh' 则按中文解码（更适合出简体主导文本）。
     compute_type: CPU 推荐 int8；有 NVIDIA GPU 可试 float16。
     """
+    logger.info(
+        "加载 Whisper 模型：model=%s device=%s compute_type=%s language=%s",
+        model_size,
+        device,
+        compute_type,
+        language or "auto",
+    )
     model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    logger.info("开始转写音频：%s", wav_path)
     segments_iter, info = model.transcribe(
         str(wav_path),
         language=language,
@@ -50,6 +61,7 @@ def transcribe_audio(
     for seg in segments_iter:
         segments.append(Segment(start=seg.start, end=seg.end, text=seg.text.strip()))
     detected = info.language or "unknown"
+    logger.info("转写完成：segments=%d detected_language=%s", len(segments), detected)
     return segments, detected
 
 

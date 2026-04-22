@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 
 def require_ffmpeg() -> None:
     if not shutil.which("ffmpeg"):
+        logger.error("未找到 ffmpeg 可执行文件。")
         raise RuntimeError(
             "未找到 ffmpeg。请先安装：brew install ffmpeg（macOS）或从 https://ffmpeg.org 获取。"
         )
@@ -17,6 +21,7 @@ def require_ffmpeg() -> None:
 def extract_wav_16k_mono(video_path: Path, out_wav: Path) -> Path:
     require_ffmpeg()
     out_wav.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("开始提取音频：%s -> %s", video_path, out_wav)
     cmd = [
         "ffmpeg",
         "-y",
@@ -33,5 +38,7 @@ def extract_wav_16k_mono(video_path: Path, out_wav: Path) -> Path:
     ]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
+        logger.error("ffmpeg 执行失败：%s", r.stderr or r.stdout)
         raise RuntimeError(f"ffmpeg 失败：{r.stderr or r.stdout}")
+    logger.info("音频提取完成：%s", out_wav)
     return out_wav
