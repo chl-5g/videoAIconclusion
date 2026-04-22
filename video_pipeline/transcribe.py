@@ -54,7 +54,7 @@ def transcribe_audio(
 
 
 def segments_to_plain_text(segments: list[Segment]) -> str:
-    return "\n".join(s.text for s in segments if s.text).strip()
+    return " ".join(s.text for s in segments if s.text).strip()
 
 
 def segments_to_timestamped_text(segments: list[Segment]) -> str:
