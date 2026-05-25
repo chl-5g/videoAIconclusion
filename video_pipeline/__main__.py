@@ -21,6 +21,11 @@ from video_pipeline.download import (
     is_http_url,
     sanitize_job_name,
 )
+from video_pipeline.download_douyin import (
+    download_douyin_video,
+    extract_douyin_video_info,
+    is_douyin_url,
+)
 from video_pipeline.extract import extract_wav_16k_mono
 from video_pipeline.summarize import summarize_transcript
 from video_pipeline.transcribe import (
@@ -71,18 +76,32 @@ def main() -> int:
     cwd = Path.cwd()
 
     if is_http_url(raw_input):
-        meta = extract_video_info(raw_input)
-        default_name = sanitize_job_name(meta["title"], meta["id"])
-        if args.out is not None:
-            out_dir = args.out.expanduser().resolve()
-            job_name = out_dir.name
+        if is_douyin_url(raw_input):
+            meta = extract_douyin_video_info(raw_input)
+            default_name = sanitize_job_name(meta["title"], meta["id"])
+            if args.out is not None:
+                out_dir = args.out.expanduser().resolve()
+                job_name = out_dir.name
+            else:
+                job_name = default_name
+                out_dir = (cwd / "output" / job_name).resolve()
+            out_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("[0] 从抖音下载视频（移动端 API）...")
+            video = download_douyin_video(raw_input, out_dir, job_name)
+            logger.info("已保存：%s", video)
         else:
-            job_name = default_name
-            out_dir = (cwd / "output" / job_name).resolve()
-        out_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("[0] 从链接下载视频（yt-dlp）...")
-        video = download_video_url(raw_input, out_dir, job_name)
-        logger.info("已保存：%s", video)
+            meta = extract_video_info(raw_input)
+            default_name = sanitize_job_name(meta["title"], meta["id"])
+            if args.out is not None:
+                out_dir = args.out.expanduser().resolve()
+                job_name = out_dir.name
+            else:
+                job_name = default_name
+                out_dir = (cwd / "output" / job_name).resolve()
+            out_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("[0] 从链接下载视频（yt-dlp）...")
+            video = download_video_url(raw_input, out_dir, job_name)
+            logger.info("已保存：%s", video)
     else:
         video = Path(raw_input).expanduser().resolve()
         if not video.is_file():

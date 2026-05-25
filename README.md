@@ -1,10 +1,10 @@
 # videoAIconclusion
 
-本地视频或 **网页链接**（如哔哩哔哩）的「可选下载 → 抽音频 → 语音转写 →（可选）大模型总结」流水线，组件可拆开替换：**yt-dlp**、FFmpeg、faster-whisper、任意 **OpenAI 兼容** Chat Completions 接口。
+本地视频或 **网页链接**（如哔哩哔哩、抖音）的「可选下载 → 抽音频 → 语音转写 →（可选）大模型总结」流水线，组件可拆开替换：**yt-dlp** / **抖音移动端API**、FFmpeg、faster-whisper、任意 **OpenAI 兼容** Chat Completions 接口。
 
 ## 流程概览
 
-0. **yt-dlp**（可选）：当第一个参数为 `http(s)://` 链接时，先把视频下载到 `-o` 指定目录（合并为 mp4 需本机 **ffmpeg**）。  
+0. **下载**（可选）：当第一个参数为 `http(s)://` 链接时，先把视频下载到 `-o` 指定目录。B 站等通用站点使用 **yt-dlp**（合并为 mp4 需本机 **ffmpeg**）；抖音使用 **移动端 API** 直接解析，无需 yt-dlp、无需 cookie。  
 1. **FFmpeg**：从视频导出 16 kHz 单声道 PCM WAV，供 Whisper 使用。  
 2. **Faster-Whisper**：转写为带时间戳的片段；默认按中文解码，并对中文结果做 **简体字形** 规范化（`zhconv`）。  
 3. **HTTP API 总结（默认关闭）**：需加 `--summarize` 并配置 `OPENAI_API_KEY` 才会将全文逐字稿 POST 到 `/v1/chat/completions` 生成 `_conclusion.md`。默认只产出转写。
@@ -58,6 +58,12 @@ python -m video_pipeline /path/to/demo.mp4
 
 ```bash
 python -m video_pipeline "https://www.bilibili.com/video/BV173wdzgEFu/"
+```
+
+使用抖音链接时，会走 `video_pipeline/download_douyin.py`（纯 Python，无外部依赖，零 cookie），再走转写：
+
+```bash
+python -m video_pipeline "https://v.douyin.com/xxxxx/"
 ```
 
 若希望目录名固定为 `aaa`（与视频文件前缀一致），可显式指定工作目录（取**最后一级目录名**作为「视频名」）：
@@ -126,6 +132,7 @@ videoAIconclusion/
 │   ├── __init__.py
 │   ├── __main__.py             # CLI 入口
 │   ├── download.py             # yt-dlp 下载（B 站等）
+│   ├── download_douyin.py      # 抖音移动端 API 下载（无水印，无需 cookie）
 │   ├── extract.py              # FFmpeg 抽 WAV
 │   ├── transcribe.py           # faster-whisper + 简体规范化
 │   └── summarize.py            # OpenAI 兼容 Chat Completions
