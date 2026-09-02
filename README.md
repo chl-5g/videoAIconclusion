@@ -40,7 +40,7 @@ cp env.example .env
 | 变量 | 说明 |
 |------|------|
 | `OPENAI_API_KEY` | 调用总结接口的密钥；仅转写时可不设。 |
-| `OPENAI_BASE_URL` | 可选，默认 `https://api.openai.com/v1`。DeepSeek、自建网关、Ollama（`http://127.0.0.1:11434/v1`）等填对应前缀。 |
+| `OPENAI_BASE_URL` | 可选，默认 `https://api.openai.com/v1`。DeepSeek、自建网关、Xinference（`http://127.0.0.1:9997/v1`）等填对应前缀。 |
 | `LLM_MODEL` | 可选，默认 `gpt-4o-mini`；例如 DeepSeek 可用 `deepseek-chat`。 |
 | `YTDLP_COOKIEFILE` | 可选，Netscape 格式 cookie 文件路径；部分 B 站高码率或校验场景可能需要（见 `env.example`）。 |
 
